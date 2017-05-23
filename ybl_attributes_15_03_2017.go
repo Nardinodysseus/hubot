@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
+	//"time"
 
 	"github.com/hyperledger/fabric/core/chaincode/shim"
 	"github.com/hyperledger/fabric/core/chaincode/shim/crypto/attr"
@@ -89,7 +89,7 @@ type AnchorProgram struct {
 	Vendorifsccode            string      `json:"vendorifsccode"`
 	Vendorlimit               float64     `json:"vendorlimit"`
 	VendorExpirydate          string      `json:"vendorexpirydate"`
-	POTimestamp               time.Time   `json:"poRaisedTime"`
+	//POTimestamp               time.Time   `json:"poRaisedTime"`
 	POAcknowledged            bool        `json:"poacknowledged"`
 	Items                     []MyBoxItem `json:"invoices"`
 	Status                    int         `json:"status"`
@@ -126,10 +126,11 @@ type MyBoxItem struct {
 	MOStatus               int       `json:"moStatus"`
 	SettlementAmount       string    `json:"settlementAmount"`
 	CheckerApprovedPayment bool      `json:"checkerApprovedPayment"`
-	MOTimestamp            time.Time `json:"invoiceRaisedTime"`
+	//MOTimestamp            time.Time `json:"invoiceRaisedTime"`
 	MOReceivableAmount     float64   `json:"moReceivableAmount"`
 	PaymentChannel         string    `json:"paymentChannel"`
 	MOPaid                 bool      `json:"mopaid"`
+	TxnStatus              string    `json:"txnStatus"`
 	UTRNumber              string    `json:"utrnumber"`
 	MOForks                []string  `json:"moForks"`
 	MOParent               string    `json:"moParent"`
@@ -180,7 +181,7 @@ type ProgramIDs struct {
 	Vendorifsccode            string    `json:"vendorifsccode"`
 	Vendorlimit               float64   `json:"vendorlimit"`
 	VendorExpirydate          string    `json:"vendorexpirydate"`
-	POTimestamp               time.Time `json:"poRaisedTime"`
+	//POTimestamp               time.Time `json:"poRaisedTime"`
 	POAcknowledged            bool      `json:"poacknowledged"`
 	Invoices                  []InvoiceIDs
 	Status                    int    `json:"status"`
@@ -222,7 +223,7 @@ type InvoiceIDs struct {
 	ApprovedInvoiceAmount  float64   `json:"approvedinvoiceAmount"`
 	MOStatus               int       `json:"moStatus"`
 	CheckerApprovedPayment bool      `json:"checkerApprovedPayment"`
-	MOTimestamp            time.Time `json:"invoiceRaisedTime"`
+	//MOTimestamp            time.Time `json:"invoiceRaisedTime"`
 	MOReceivableAmount     float64   `json:"moReceivableAmount"`
 	PaymentChannel         string    `json:"paymentChannel"`
 	MOPaid                 bool      `json:"mopaid"`
@@ -604,7 +605,7 @@ func (t *AssetManagementChaincode) Invoke(stub shim.ChaincodeStubInterface, func
 				fmt.Printf("INVOKE: A Error retrieving Invoice: %s", err)
 				return nil, errors.New("Error retrieving INVOICE")
 			}
-			return t.update_checker_invoice_payment(stub, x, v, callerAccount, caller_affiliation, args[2])
+			return t.update_checker_invoice_payment(stub, x, v, callerAccount, caller_affiliation, args[2], args[3])
 		} else if function == "update_rev_checker_invoice_payment" {
 			x, err := t.retrieve_invoice(stub, args[1])
 			if err != nil {
@@ -989,7 +990,7 @@ func (t *AssetManagementChaincode) anchor_to_vendor(stub shim.ChaincodeStubInter
 		v.Owner = receiverAccount              // then make the owner the new owner
 		v.Status = STATE_PURCHASE_ORDER_PLACED // and mark it in the state of creating purchase order
 		v.PORaisedAgainst = receiverAccount
-		v.POTimestamp = time.Now()
+		//v.POTimestamp = time.Now()
 	} else { // Otherwise if there is an error
 
 		fmt.Printf("ANCHOR_TO_VENDOR: Permission Denied")
@@ -1119,8 +1120,8 @@ func (t *AssetManagementChaincode) transfer_vendor_to_anchor_invoice(stub shim.C
 				x.InvoiceRaisedAgainst = receiverAccount
 				v.Items[i].InvoiceRaisedAgainst = receiverAccount
 
-				x.MOTimestamp = time.Now()
-				v.Items[i].MOTimestamp = time.Now()
+				//x.MOTimestamp = time.Now()
+				//v.Items[i].MOTimestamp = time.Now()
 
 				if x.MOParent == "" || x.MOParent == "UNDEFINED" {
 					fmt.Println("QUERY: Error retrieving Parent")
@@ -2669,7 +2670,7 @@ func (t *AssetManagementChaincode) update_rev_checker_invoice_approval(stub shim
 //=================================================================================================================================
 //	 update_checker_invoice_payment
 //=================================================================================================================================
-func (t *AssetManagementChaincode) update_checker_invoice_payment(stub shim.ChaincodeStubInterface, x MyBoxItem, v AnchorProgram, callerAccount []byte, caller_affiliation string, new_value string) ([]byte, error) {
+func (t *AssetManagementChaincode) update_checker_invoice_payment(stub shim.ChaincodeStubInterface, x MyBoxItem, v AnchorProgram, callerAccount []byte, caller_affiliation string, new_value0 string, new_value string) ([]byte, error) {
 
 	//var pending = 0
 	if v.Status == STATE_PURCHASE_ORDER_PLACED &&
@@ -2684,15 +2685,32 @@ func (t *AssetManagementChaincode) update_checker_invoice_payment(stub shim.Chai
 		for i := range v.Items {
 			//			pending += v.Items[i].MOAmount
 			if x.MOID == v.Items[i].MOID {
+				
+				x.TxnStatus = new_value0
+				v.Items[i].TxnStatus = new_value0 
+				
+				if new_value0 == "SUCCESS" {
+					
+					x.UTRNumber = new_value
+					v.Items[i].UTRNumber = new_value
 
-				x.UTRNumber = new_value
-				v.Items[i].UTRNumber = new_value
+					x.MOPaid = true
+					v.Items[i].MOPaid = true
 
-				x.MOPaid = true
-				v.Items[i].MOPaid = true
+					x.MOStatus = STATE_INVOICE_PAID
+					v.Items[i].MOStatus = STATE_INVOICE_PAID
+				} else {
+					
+					
+					x.UTRNumber = new_value
+					v.Items[i].UTRNumber = new_value
 
-				x.MOStatus = STATE_INVOICE_PAID
-				v.Items[i].MOStatus = STATE_INVOICE_PAID
+					x.MOPaid = false
+					v.Items[i].MOPaid = false
+
+					x.MOStatus = STATE_INVOICE_PAYMENT_APPROVED
+					v.Items[i].MOStatus = STATE_INVOICE_PAYMENT_APPROVED
+				}
 
 				if x.MOParent == "" || x.MOParent == "UNDEFINED" {
 					fmt.Println("QUERY: Error retrieving Parent")
@@ -3282,7 +3300,7 @@ func (t *AssetManagementChaincode) get_anchorprogramIDs(stub shim.ChaincodeStubI
 			list.Vendorlimit = v.Vendorlimit
 			list.VendorExpirydate = v.VendorExpirydate
 			list.POAcknowledged = v.POAcknowledged
-			list.POTimestamp = v.POTimestamp
+			//list.POTimestamp = v.POTimestamp
 			list.Status = v.Status
 			list.AnchorProgramID = v.AnchorProgramID
 			list.Settled = v.Settled
@@ -3354,7 +3372,7 @@ func (t *AssetManagementChaincode) get_invoiceIDs(stub shim.ChaincodeStubInterfa
 			list.ApprovedInvoiceAmount = v.ApprovedInvoiceAmount
 			list.MOStatus = v.MOStatus
 			list.CheckerApprovedPayment = v.CheckerApprovedPayment
-			list.MOTimestamp = v.MOTimestamp
+			//list.MOTimestamp = v.MOTimestamp
 			list.MOPaid = v.MOPaid
 			list.UTRNumber = v.UTRNumber
 			list.MOSettled = v.MOSettled
